@@ -31,7 +31,7 @@ class CompareTest(unittest.TestCase):
         self.assertEqual(r.hits, [])
 
     def test_punctuation_and_space_ignored(self):
-        r = self.run_cmp("今天 天气 真的很好啊我们出去玩吧。", "今天天气真的很好啊，我们出去玩吧！")
+        r = self.run_cmp("今天 天气 真的很好啊，我们出去玩吧。", "今天天气真的很好啊, 我们出去 玩吧！")
         self.assertEqual(r.duplicate_rate, 1.0)
 
 
