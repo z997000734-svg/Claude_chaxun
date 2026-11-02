@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>视频脚本查重</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1d2129; --muted: #6b7280; --line: #e5e7eb;
+  --accent: #2f6fed; --accent-weak: #e8efff;
+  --high: #d93025; --high-bg: #fde8e7; --mid: #b26a00; --mid-bg: #fff3dc; --low: #1e8e3e; --low-bg: #e6f4ea;
+  --mark: #ffe08a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171c; --card: #1e2128; --text: #e6e8ec; --muted: #9aa1ad; --line: #2e323b;
+    --accent: #6b9bff; --accent-weak: #22304d;
+    --high: #ff7b72; --high-bg: #3d1f1f; --mid: #f0b44c; --mid-bg: #3a2e18; --low: #6bd38a; --low-bg: #1b3325;
+    --mark: #6b5a1a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171c; --card: #1e2128; --text: #e6e8ec; --muted: #9aa1ad; --line: #2e323b;
+  --accent: #6b9bff; --accent-weak: #22304d;
+  --high: #ff7b72; --high-bg: #3d1f1f; --mid: #f0b44c; --mid-bg: #3a2e18; --low: #6bd38a; --low-bg: #1b3325;
+  --mark: #6b5a1a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.card h2 { font-size: 16px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.card h2 .hint { font-weight: normal; color: var(--muted); font-size: 13px; }
+textarea, input[type=text], input[type=date], input[type=number] {
+  width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+  background: var(--bg); color: var(--text); font: inherit; }
+textarea { min-height: 180px; resize: vertical; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.row > label { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.row input[type=number] { width: 80px; }
+.row input[type=date] { width: auto; }
+button, .btn { border: 1px solid var(--line); background: var(--card); color: var(--text);
+  border-radius: 8px; padding: 7px 14px; font: inherit; font-size: 14px; cursor: pointer; }
+button:hover, .btn:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+button.danger { color: var(--high); }
+button.small { padding: 2px 8px; font-size: 12px; }
+input[type=file] { display: none; }
+.lib { max-height: 260px; overflow: auto; margin-top: 8px; border-top: 1px solid var(--line); }
+.lib-item { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.lib-item .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-item .date { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.tag { font-size: 12px; padding: 1px 8px; border-radius: 99px; background: var(--accent-weak); color: var(--accent); }
+.empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
+.settings { margin-top: 16px; }
+#results { margin-top: 16px; display: none; }
+.summary { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.big { font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.lvl { padding: 3px 10px; border-radius: 99px; font-size: 13px; font-weight: 600; }
+.lvl.high { color: var(--high); background: var(--high-bg); }
+.lvl.mid { color: var(--mid); background: var(--mid-bg); }
+.lvl.low { color: var(--low); background: var(--low-bg); }
+.res { border-top: 1px solid var(--line); padding: 12px 0; }
+.res-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.res-head .name { font-weight: 600; }
+.bar { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 8px 0; }
+.bar > i { display: block; height: 100%; }
+.metrics { color: var(--muted); font-size: 13px; display: flex; gap: 16px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+details { margin-top: 6px; }
+summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+.hit { font-size: 14px; padding: 6px 0 6px 10px; border-left: 3px solid var(--mark); margin: 6px 0; }
+.hit .sim { color: var(--muted); font-size: 12px; margin-right: 6px; font-variant-numeric: tabular-nums; }
+.hit .match { color: var(--muted); font-size: 13px; }
+.preview { white-space: pre-wrap; word-break: break-all; font-size: 14px; background: var(--bg);
+  padding: 12px; border-radius: 8px; max-height: 360px; overflow: auto; }
+mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1px; }
+.foot { color: var(--muted); font-size: 12px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>视频脚本查重</h1>
+  <p class="sub">把今天的脚本和前几天的脚本、或者指定的脚本对比，看重复了多少。所有内容只保存在你自己的浏览器里，不会上传。</p>
+
+  <div class="grid">
+    <div class="card">
+      <h2>① 今天的脚本</h2>
+      <textarea id="current" placeholder="把今天写的脚本粘贴到这里……"></textarea>
+      <div class="row">
+        <label class="btn">上传文件<input type="file" id="currentFile" accept=".txt,.md,.srt,text/*"></label>
+        <input type="text" id="currentTitle" placeholder="标题（保存到脚本库时用）" style="flex:1;min-width:140px">
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>② 指定对比的脚本 <span class="hint">可选</span></h2>
+      <textarea id="target" placeholder="想和某一篇脚本单独对比，就粘贴到这里……"></textarea>
+      <div class="row">
+        <label class="btn">上传文件<input type="file" id="targetFile" accept=".txt,.md,.srt,text/*"></label>
+        <span class="hint" style="color:var(--muted);font-size:13px">也可以在下面的脚本库里点“指定对比”</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card settings">
+    <h2>③ 历史脚本库 <span class="hint" id="libCount"></span></h2>
+    <div class="row" style="margin-top:0">
+      <label class="btn">批量上传脚本<input type="file" id="libFiles" multiple accept=".txt,.md,.srt,text/*"></label>
+      <button id="exportLib">导出备份</button>
+      <label class="btn">导入备份<input type="file" id="importLib" accept=".json"></label>
+      <button id="clearLib" class="danger">清空</button>
+    </div>
+    <div class="row"><span style="color:var(--muted);font-size:13px">上传时如果文件名里有日期（如 2026-11-01-保温杯.txt），就按该日期归档，否则按文件修改日期。</span></div>
+    <div class="lib" id="lib"></div>
+  </div>
+
+  <div class="card settings">
+    <div class="row" style="margin-top:0">
+      <label>今天是 <input type="date" id="today"></label>
+      <label>对比最近 <input type="number" id="days" min="0" max="365" value="2"> 天</label>
+      <label>相似度 ≥ <input type="number" id="threshold" min="50" max="100" value="80"> % 算重复</label>
+      <label>少于 <input type="number" id="minLen" min="1" max="50" value="6"> 字的短句忽略</label>
+      <span style="flex:1"></span>
+      <button id="saveCurrent">保存到脚本库</button>
+      <button id="run" class="primary">开始查重</button>
+    </div>
+  </div>
+
+  <div class="card" id="results"></div>
+
+  <p class="foot">重复率 = 重复小句的字数 ÷ 全文字数（≥50% 高度重复，≥20% 部分重复）。比较前会去掉标点、空格，英文不区分大小写。</p>
+</div>
+
+<script>
+(() => {
+  // ---------------------------------------------------------------- 文本处理
+  const CLAUSE_DELIM = /[。！？!?；;，,、\n\r]+/;
+  const NOISE = /[\s，,。．.！!？?；;：:、“”"'‘’（）()【】\[\]《》<>…—\-~·`*#]+/g;
+  const DATE_RE = /(20\d{2})[-_.]?(0[1-9]|1[0-2])[-_.]?(0[1-9]|[12]\d|3[01])/;
+
+  const norm = s => s.replace(NOISE, '').toLowerCase();
+  const chars = s => Array.from(s); // 按字符处理，兼容 emoji
+
+  // 切成小句，并记录在原文中的位置（用于高亮）
+  function clauses(text, minLen) {
+    const out = [];
+    const re = /[^。！？!?；;，,、\n\r]+/g;
+    let m;
+    while ((m = re.exec(text))) {
+      const raw = m[0].trim();
+      const n = norm(raw);
+      if (chars(n).length >= minLen) {
+        const start = m.index + m[0].indexOf(raw);
+        out.push({ raw, n, start, end: start + raw.length });
+      }
+    }
+    return out;
+  }
+
+  function ngrams(s, k = 3) {
+    const c = chars(s), set = new Set();
+    if (c.length < k) { if (c.length) set.add(c.join('')); return set; }
+    for (let i = 0; i + k <= c.length; i++) set.add(c.slice(i, i + k).join(''));
+    return set;
+  }
+
+  // 相似度 = 2 × 最长公共子序列 / 两段总长
+  function ratio(a, b) {
+    const x = chars(a), y = chars(b);
+    if (!x.length || !y.length) return 0;
+    let prev = new Uint32Array(y.length + 1), cur = new Uint32Array(y.length + 1);
+    for (let i = 1; i <= x.length; i++) {
+      for (let j = 1; j <= y.length; j++) {
+        cur[j] = x[i - 1] === y[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], cur[j - 1]);
+      }
+      [prev, cur] = [cur, prev];
+    }
+    return 2 * prev[y.length] / (x.length + y.length);
+  }
+
+  function compare(current, other, opt) {
+    const cn = norm(current), on = norm(other);
+    const cg = ngrams(cn), og = ngrams(on);
+    let inter = 0; cg.forEach(g => { if (og.has(g)) inter++; });
+    const overlap = cg.size ? inter / cg.size : 0;
+    // 全文相似度：文本太长时截断，避免卡顿
+    const overall = ratio(chars(cn).slice(0, 6000).join(''), chars(on).slice(0, 6000).join(''));
+
+    const others = clauses(other, opt.minLen).map(c => ({ ...c, g: ngrams(c.n) }));
+    const hits = [];
+    let dup = 0, total = 0;
+    for (const c of clauses(current, opt.minLen)) {
+      const len = chars(c.n).length;
+      total += len;
+      const g = ngrams(c.n);
+      let best = 0, match = null;
+      for (const o of others) {
+        let shared = 0; g.forEach(x => { if (o.g.has(x)) shared++; });
+        if (g.size && shared / g.size < opt.threshold * 0.5) continue; // 粗筛
+        const s = ratio(c.n, o.n);
+        if (s > best) { best = s; match = o; if (s === 1) break; }
+      }
+      if (best >= opt.threshold) { dup += len; hits.push({ clause: c, match: match.raw, sim: best }); }
+    }
+    return { rate: total ? dup / total : 0, overall, overlap, hits };
+  }
+
+  // ---------------------------------------------------------------- 存储
+  const KEY = 'script-checker-library-v1';
+  let lib = [];
+  try { lib = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { lib = []; }
+  const saveLib = () => { try { localStorage.setItem(KEY, JSON.stringify(lib)); } catch (e) { alert('浏览器存储失败，可能空间不足或处于隐私模式。请用“导出备份”保存脚本库。'); } };
+
+  // ---------------------------------------------------------------- 工具函数
+  const $ = id => document.getElementById(id);
+  const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const pct = x => (x * 100).toFixed(1) + '%';
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const level = r => r >= 0.5 ? ['high', '高度重复'] : r >= 0.2 ? ['mid', '部分重复'] : ['low', '基本原创'];
+  const levelColor = r => `var(--${level(r)[0]})`;
+
+  async function readFile(file) {
+    const buf = await file.arrayBuffer();
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(buf).replace(/^﻿/, ''); }
+    catch (e) { return new TextDecoder('gb18030').decode(buf); }
+  }
+  function dateOf(file) {
+    const m = file.name.match(DATE_RE);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    return iso(new Date(file.lastModified || Date.now()));
+  }
+  const stripExt = n => n.replace(/\.[^.]+$/, '');
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+  // ---------------------------------------------------------------- 脚本库界面
+  let targetFromLib = null;
+
+  function renderLib() {
+    $('libCount').textContent = lib.length ? `共 ${lib.length} 篇` : '';
+    if (!lib.length) { $('lib').innerHTML = '<div class="empty">还没有历史脚本。上传以前的脚本，或者查重后点“保存到脚本库”。</div>'; return; }
+    const sorted = [...lib].sort((a, b) => b.date.localeCompare(a.date));
+    $('lib').innerHTML = sorted.map(s => `
+      <div class="lib-item">
+        <span class="date">${esc(s.date)}</span>
+        <span class="name" title="${esc(s.title)}">${esc(s.title)}</span>
+        ${targetFromLib === s.id ? '<span class="tag">已指定</span>' : ''}
+        <button class="small" data-act="target" data-id="${s.id}">指定对比</button>
+        <button class="small danger" data-act="del" data-id="${s.id}">删除</button>
+      </div>`).join('');
+  }
+
+  $('lib').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const s = lib.find(x => x.id === b.dataset.id); if (!s) return;
+    if (b.dataset.act === 'del') {
+      if (!confirm(`删除「${s.title}」？`)) return;
+      lib = lib.filter(x => x.id !== s.id);
+      if (targetFromLib === s.id) targetFromLib = null;
+      saveLib();
+    } else {
+      targetFromLib = s.id;
+      $('target').value = s.text;
+    }
+    renderLib();
+  });
+  $('target').addEventListener('input', () => { if (targetFromLib) { targetFromLib = null; renderLib(); } });
+
+  $('libFiles').addEventListener('change', async e => {
+    for (const f of e.target.files) {
+      lib.push({ id: uid(), title: stripExt(f.name), date: dateOf(f), text: await readFile(f) });
+    }
+    e.target.value = ''; saveLib(); renderLib();
+  });
+  $('currentFile').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    $('current').value = await readFile(f);
+    if (!$('currentTitle').value) $('currentTitle').value = stripExt(f.name);
+    e.target.value = '';
+  });
+  $('targetFile').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    $('target').value = await readFile(f); targetFromLib = null; renderLib();
+    e.target.value = '';
+  });
+
+  $('saveCurrent').addEventListener('click', () => {
+    const text = $('current').value.trim();
+    if (!text) { alert('今天的脚本是空的'); return; }
+    const title = $('currentTitle').value.trim() || text.slice(0, 16);
+    lib.push({ id: uid(), title, date: $('today').value || iso(new Date()), text });
+    saveLib(); renderLib();
+    alert(`已保存「${title}」，以后查重会和它对比。`);
+  });
+  $('exportLib').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(lib, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `脚本库备份-${iso(new Date())}.json`; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  $('importLib').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const data = JSON.parse(await readFile(f));
+      const ids = new Set(lib.map(x => x.id));
+      let n = 0;
+      for (const s of data) if (s && s.text && !ids.has(s.id)) { lib.push({ id: s.id || uid(), title: String(s.title || '未命名'), date: String(s.date || iso(new Date())), text: String(s.text) }); n++; }
+      saveLib(); renderLib(); alert(`导入了 ${n} 篇脚本`);
+    } catch (err) { alert('备份文件格式不对'); }
+    e.target.value = '';
+  });
+  $('clearLib').addEventListener('click', () => {
+    if (lib.length && confirm('确定清空全部历史脚本？建议先导出备份。')) { lib = []; targetFromLib = null; saveLib(); renderLib(); }
+  });
+
+  // ---------------------------------------------------------------- 查重
+  $('run').addEventListener('click', () => {
+    const current = $('current').value;
+    if (!current.trim()) { alert('请先填写今天的脚本'); return; }
+    const opt = {
+      threshold: Math.min(1, Math.max(0.5, (+$('threshold').value || 80) / 100)),
+      minLen: Math.max(1, +$('minLen').value || 6),
+    };
+    const days = Math.max(0, +$('days').value || 0);
+    const today = $('today').value || iso(new Date());
+    const start = iso(new Date(new Date(today + 'T00:00:00').getTime() - days * 86400000));
+
+    const jobs = [];
+    const target = $('target').value;
+    if (target.trim()) {
+      const s = lib.find(x => x.id === targetFromLib);
+      jobs.push({ name: s ? s.title : '指定脚本', tag: '指定对比', text: target, id: targetFromLib });
+    }
+    if (days > 0) {
+      for (const s of lib) {
+        if (s.date >= start && s.date < today && s.id !== targetFromLib && s.text.trim() !== current.trim()) {
+          jobs.push({ name: s.title, tag: `前${days}天 · ${s.date}`, text: s.text });
+        }
+      }
+    }
+    const results = jobs.map(j => ({ ...j, ...compare(current, j.text, opt) }))
+                        .sort((a, b) => b.rate - a.rate);
+    renderResults(current, results, days, start, today);
+  });
+
+  function renderResults(current, results, days, start, today) {
+    const box = $('results');
+    box.style.display = 'block';
+    if (!results.length) {
+      box.innerHTML = `<h2 style="margin:0">查重结果</h2><p class="empty">没有可对比的脚本：脚本库里没有 ${start} ~ ${today}（不含今天）的脚本，也没有指定对比脚本。</p>`;
+      box.scrollIntoView({ behavior: 'smooth' }); return;
+    }
+    const worst = results[0];
+    const [cls, txt] = level(worst.rate);
+
+    // 原文高亮：合并所有对比中命中的小句
+    const marks = new Map();
+    for (const r of results) for (const h of r.hits) {
+      const k = h.clause.start;
+      if (!marks.has(k) || marks.get(k).sim < h.sim) marks.set(k, { ...h, from: r.name });
+    }
+    let html = '', pos = 0;
+    [...marks.values()].sort((a, b) => a.clause.start - b.clause.start).forEach(h => {
+      html += esc(current.slice(pos, h.clause.start));
+      html += `<mark title="${esc(`与「${h.from}」相似 ${pct(h.sim)}：${h.match}`)}">${esc(current.slice(h.clause.start, h.clause.end))}</mark>`;
+      pos = h.clause.end;
+    });
+    html += esc(current.slice(pos));
+
+    box.innerHTML = `
+      <h2 style="margin:0 0 12px">查重结果</h2>
+      <div class="summary">
+        <div><div class="big" style="color:${levelColor(worst.rate)}">${pct(worst.rate)}</div>
+             <div style="color:var(--muted);font-size:13px;margin-top:4px">最高重复率</div></div>
+        <span class="lvl ${cls}">${txt}</span>
+        <div style="color:var(--muted);font-size:14px">最像的是「${esc(worst.name)}」<br>共对比 ${results.length} 篇${days ? `（前 ${days} 天：${start} ~ 昨天）` : ''}</div>
+      </div>
+      ${results.map(r => {
+        const [c, t] = level(r.rate);
+        return `<div class="res">
+          <div class="res-head"><span class="name">${esc(r.name)}</span><span class="tag">${esc(r.tag)}</span>
+            <span class="lvl ${c}">${pct(r.rate)} ${t}</span></div>
+          <div class="bar"><i style="width:${(r.rate * 100).toFixed(1)}%;background:${levelColor(r.rate)}"></i></div>
+          <div class="metrics"><span>重复小句：${r.hits.length} 句</span><span>全文相似度：${pct(r.overall)}</span><span>片段重合：${pct(r.overlap)}</span></div>
+          ${r.hits.length ? `<details ${r === worst ? 'open' : ''}><summary>查看重复的句子</summary>
+            ${r.hits.map(h => `<div class="hit"><span class="sim">${pct(h.sim)}</span>${esc(h.clause.raw)}
+              ${norm(h.clause.raw) !== norm(h.match) ? `<div class="match">≈ ${esc(h.match)}</div>` : ''}</div>`).join('')}
+          </details>` : ''}
+        </div>`;
+      }).join('')}
+      <div class="res"><div class="res-head"><span class="name">今天的脚本（黄色为重复部分，鼠标悬停看来源）</span></div>
+        <div class="preview" style="margin-top:8px">${html}</div></div>`;
+    box.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  $('today').value = iso(new Date());
+  renderLib();
+})();
+</script>
+</body>
+</html>
