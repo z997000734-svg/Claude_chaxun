@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>视频脚本查重</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1d2129; --muted: #6b7280; --line: #e5e7eb;
+  --accent: #2f6fed; --accent-weak: #e8efff;
+  --high: #d93025; --high-bg: #fde8e7; --mid: #b26a00; --mid-bg: #fff3dc; --low: #1e8e3e; --low-bg: #e6f4ea;
+  --mark: #ffe08a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171c; --card: #1e2128; --text: #e6e8ec; --muted: #9aa1ad; --line: #2e323b;
+    --accent: #6b9bff; --accent-weak: #22304d;
+    --high: #ff7b72; --high-bg: #3d1f1f; --mid: #f0b44c; --mid-bg: #3a2e18; --low: #6bd38a; --low-bg: #1b3325;
+    --mark: #6b5a1a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171c; --card: #1e2128; --text: #e6e8ec; --muted: #9aa1ad; --line: #2e323b;
+  --accent: #6b9bff; --accent-weak: #22304d;
+  --high: #ff7b72; --high-bg: #3d1f1f; --mid: #f0b44c; --mid-bg: #3a2e18; --low: #6bd38a; --low-bg: #1b3325;
+  --mark: #6b5a1a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; }
+.wrap { max-width: 1100px; margin: 0 auto; padding-block: 24px 60px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1 { font-size: 22px; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.card h2 { font-size: 16px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.card h2 .hint { font-weight: normal; color: var(--muted); font-size: 13px; }
+textarea, input[type=text], input[type=date], input[type=number] {
+  width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+  background: var(--bg); color: var(--text); font: inherit; }
+textarea { min-height: 180px; resize: vertical; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.row > label { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.row input[type=number] { width: 80px; }
+.row input[type=date] { width: auto; }
+button, .btn { border: 1px solid var(--line); background: var(--card); color: var(--text);
+  border-radius: 8px; padding: 7px 14px; font: inherit; font-size: 14px; cursor: pointer; }
+button:hover, .btn:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+button.danger { color: var(--high); }
+button.small { padding: 2px 8px; font-size: 12px; }
+input[type=file] { display: none; }
+.lib { max-height: 260px; overflow: auto; margin-top: 8px; border-top: 1px solid var(--line); }
+.lib-item { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.lib-item .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-item .date { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.tag { font-size: 12px; padding: 1px 8px; border-radius: 99px; background: var(--accent-weak); color: var(--accent); }
+.empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
+.settings { margin-top: 16px; }
+#results { margin-top: 16px; display: none; }
+.summary { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.big { font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.lvl { padding: 3px 10px; border-radius: 99px; font-size: 13px; font-weight: 600; }
+.lvl.high { color: var(--high); background: var(--high-bg); }
+.lvl.mid { color: var(--mid); background: var(--mid-bg); }
+.lvl.low { color: var(--low); background: var(--low-bg); }
+.res { border-top: 1px solid var(--line); padding: 12px 0; }
+.res-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.res-head .name { font-weight: 600; }
+.bar { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 8px 0; }
+.bar > i { display: block; height: 100%; }
+.metrics { color: var(--muted); font-size: 13px; display: flex; gap: 16px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+details { margin-top: 6px; }
+summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+.hit { font-size: 14px; padding: 6px 0 6px 10px; border-left: 3px solid var(--mark); margin: 6px 0; }
+.hit .sim { color: var(--muted); font-size: 12px; margin-right: 6px; font-variant-numeric: tabular-nums; }
+.hit .match { color: var(--muted); font-size: 13px; }
+.preview { white-space: pre-wrap; word-break: break-all; font-size: 14px; background: var(--bg);
+  padding: 12px; border-radius: 8px; max-height: 360px; overflow: auto; }
+mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1px; }
+button.armed { background: var(--high); color: #fff; border-color: var(--high); }
+button:focus-visible, .btn:focus-within, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.store-note { color: var(--muted); font-size: 13px; font-weight: normal; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 14px;
+  max-width: calc(100% - 32px); box-shadow: 0 4px 16px rgba(0,0,0,.2); z-index: 20; }
+.toast.err { background: var(--high); color: #fff; }
+.foot { color: var(--muted); font-size: 12px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>视频脚本查重</h1>
+  <p class="sub">把今天的脚本和前几天的脚本、或者指定的脚本对比，看重复了多少。脚本库只有你自己能看到。</p>
+
+  <div class="grid">
+    <div class="card">
+      <h2>① 今天的脚本</h2>
+      <textarea id="current" placeholder="把今天写的脚本粘贴到这里……"></textarea>
+      <div class="row">
+        <label class="btn">上传文件<input type="file" id="currentFile" accept=".txt,.md,.srt,text/*"></label>
+        <input type="text" id="currentTitle" placeholder="标题（保存到脚本库时用）" style="flex:1;min-width:140px">
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>② 指定对比的脚本 <span class="hint">可选</span></h2>
+      <textarea id="target" placeholder="想和某一篇脚本单独对比，就粘贴到这里……"></textarea>
+      <div class="row">
+        <label class="btn">上传文件<input type="file" id="targetFile" accept=".txt,.md,.srt,text/*"></label>
+        <span class="hint" style="color:var(--muted);font-size:13px">也可以在下面的脚本库里点“指定对比”</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card settings">
+    <h2>③ 历史脚本库 <span class="hint" id="libCount"></span> <span class="store-note" id="storageNote"></span></h2>
+    <div class="row" style="margin-top:0">
+      <label class="btn">批量上传脚本<input type="file" id="libFiles" multiple accept=".txt,.md,.srt,text/*"></label>
+      <button id="exportLib">导出备份</button>
+      <label class="btn">导入备份<input type="file" id="importLib" accept=".json"></label>
+      <button id="clearLib" class="danger">清空</button>
+    </div>
+    <div class="row"><span style="color:var(--muted);font-size:13px">上传时如果文件名里有日期（如 2026-11-01-保温杯.txt），就按该日期归档，否则按文件修改日期。</span></div>
+    <div class="lib" id="lib"></div>
+  </div>
+
+  <div class="card settings">
+    <div class="row" style="margin-top:0">
+      <label>今天是 <input type="date" id="today"></label>
+      <label>对比最近 <input type="number" id="days" min="0" max="365" value="2"> 天</label>
+      <label>相似度 ≥ <input type="number" id="threshold" min="50" max="100" value="80"> % 算重复</label>
+      <label>少于 <input type="number" id="minLen" min="1" max="50" value="6"> 字的短句忽略</label>
+      <span style="flex:1"></span>
+      <button id="saveCurrent">保存到脚本库</button>
+      <button id="run" class="primary">开始查重</button>
+    </div>
+  </div>
+
+  <div class="card" id="results"></div>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+  <p class="foot">重复率 = 重复小句的字数 ÷ 全文字数（≥50% 高度重复，≥20% 部分重复）。比较前会去掉标点、空格，英文不区分大小写。</p>
+</div>
+
+<script>
+(() => {
+  // ---------------------------------------------------------------- 文本处理
+  const CLAUSE_DELIM = /[。！？!?；;，,、\n\r]+/;
+  const NOISE = /[\s，,。．.！!？?；;：:、“”"'‘’（）()【】\[\]《》<>…—\-~·`*#]+/g;
+  const DATE_RE = /(20\d{2})[-_.]?(0[1-9]|1[0-2])[-_.]?(0[1-9]|[12]\d|3[01])/;
+
+  const norm = s => s.replace(NOISE, '').toLowerCase();
+  const chars = s => Array.from(s); // 按字符处理，兼容 emoji
+
+  // 切成小句，并记录在原文中的位置（用于高亮）
+  function clauses(text, minLen) {
+    const out = [];
+    const re = /[^。！？!?；;，,、\n\r]+/g;
+    let m;
+    while ((m = re.exec(text))) {
+      const raw = m[0].trim();
+      const n = norm(raw);
+      if (chars(n).length >= minLen) {
+        const start = m.index + m[0].indexOf(raw);
+        out.push({ raw, n, start, end: start + raw.length });
+      }
+    }
+    return out;
+  }
+
+  function ngrams(s, k = 3) {
+    const c = chars(s), set = new Set();
+    if (c.length < k) { if (c.length) set.add(c.join('')); return set; }
+    for (let i = 0; i + k <= c.length; i++) set.add(c.slice(i, i + k).join(''));
+    return set;
+  }
+
+  // 相似度 = 2 × 最长公共子序列 / 两段总长
+  function ratio(a, b) {
+    const x = chars(a), y = chars(b);
+    if (!x.length || !y.length) return 0;
+    let prev = new Uint32Array(y.length + 1), cur = new Uint32Array(y.length + 1);
+    for (let i = 1; i <= x.length; i++) {
+      for (let j = 1; j <= y.length; j++) {
+        cur[j] = x[i - 1] === y[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], cur[j - 1]);
+      }
+      [prev, cur] = [cur, prev];
+    }
+    return 2 * prev[y.length] / (x.length + y.length);
+  }
+
+  function compare(current, other, opt) {
+    const cn = norm(current), on = norm(other);
+    const cg = ngrams(cn), og = ngrams(on);
+    let inter = 0; cg.forEach(g => { if (og.has(g)) inter++; });
+    const overlap = cg.size ? inter / cg.size : 0;
+    // 全文相似度：文本太长时截断，避免卡顿
+    const overall = ratio(chars(cn).slice(0, 6000).join(''), chars(on).slice(0, 6000).join(''));
+
+    const others = clauses(other, opt.minLen).map(c => ({ ...c, g: ngrams(c.n) }));
+    const hits = [];
+    let dup = 0, total = 0;
+    for (const c of clauses(current, opt.minLen)) {
+      const len = chars(c.n).length;
+      total += len;
+      const g = ngrams(c.n);
+      let best = 0, match = null;
+      for (const o of others) {
+        let shared = 0; g.forEach(x => { if (o.g.has(x)) shared++; });
+        if (g.size && shared / g.size < opt.threshold * 0.5) continue; // 粗筛
+        const s = ratio(c.n, o.n);
+        if (s > best) { best = s; match = o; if (s === 1) break; }
+      }
+      if (best >= opt.threshold) { dup += len; hits.push({ clause: c, match: match.raw, sim: best }); }
+    }
+    return { rate: total ? dup / total : 0, overall, overlap, hits };
+  }
+
+  // ---------------------------------------------------------------- 存储
+  // 在线（claude.ai）打开时存到你自己的账号里，只有你能看到，手机电脑同步；
+  // 本地双击打开时存到当前浏览器。
+  const KEY = 'script-checker-library-v1';
+  let lib = [];
+  let cloud = null; // claude.ai 上的私人脚本库集合
+  const okId = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(id);
+
+  function readLocal() {
+    try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; }
+  }
+  function writeLocal() {
+    try { localStorage.setItem(KEY, JSON.stringify(lib)); }
+    catch (e) { toast('浏览器存储失败，可能空间不足或处于隐私模式。请先“导出备份”。', true); }
+  }
+  const store = {
+    async add(items) {
+      if (cloud) {
+        for (const s of items) await cloud.doc(s.id).set({ title: s.title, date: s.date, text: s.text });
+      } else { lib.push(...items); writeLocal(); renderLib(); }
+    },
+    async remove(ids) {
+      if (cloud) { for (const id of ids) await cloud.doc(id).delete(); }
+      else { lib = lib.filter(x => !ids.includes(x.id)); writeLocal(); renderLib(); }
+    },
+  };
+  async function guarded(fn, okMsg) {
+    try { await fn(); if (okMsg) toast(okMsg); }
+    catch (e) { toast(`保存失败：${(e && e.message) || e}。请稍后再试。`, true); }
+  }
+
+  function setStorageNote(text) { $('storageNote').textContent = text; }
+
+  async function initStorage() {
+    const use = window.claude && window.claude.use;
+    if (!use) { lib = readLocal(); setStorageNote('脚本库保存在当前浏览器'); renderLib(); return; }
+    setStorageNote('正在加载脚本库…');
+    $('lib').innerHTML = '<div class="empty">正在加载脚本库…</div>';
+    const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+    const id = user ? await user.id() : null;
+    if (!db || !id) {
+      lib = readLocal();
+      setStorageNote('未登录，脚本库只保存在当前浏览器');
+      renderLib(); return;
+    }
+    cloud = db.collection('data/users/' + id);
+    const timer = setTimeout(() => setStorageNote('脚本库加载较慢，请检查网络'), 10000);
+    cloud.onSnapshot(snap => {
+      clearTimeout(timer);
+      lib = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setStorageNote('脚本库已保存到你的账号，只有你能看到，手机电脑同步');
+      if (targetFromLib && !lib.some(x => x.id === targetFromLib)) targetFromLib = null;
+      renderLib();
+    }, err => {
+      clearTimeout(timer);
+      setStorageNote(`脚本库加载失败（${err.code}），请刷新页面重试`);
+    });
+  }
+
+  // ---------------------------------------------------------------- 工具函数
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const pct = x => (x * 100).toFixed(1) + '%';
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const level = r => r >= 0.5 ? ['high', '高度重复'] : r >= 0.2 ? ['mid', '部分重复'] : ['low', '基本原创'];
+  const levelColor = r => `var(--${level(r)[0]})`;
+
+  let toastTimer;
+  function toast(msg, isError) {
+    const t = $('toast');
+    t.textContent = msg; t.classList.toggle('err', !!isError); t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, isError ? 6000 : 3000);
+  }
+  // 危险操作点两次确认（在线页面不支持浏览器弹窗）
+  function armed(btn, label) {
+    if (btn.dataset.armed) return true;
+    const old = btn.textContent;
+    btn.dataset.armed = '1'; btn.textContent = label; btn.classList.add('armed');
+    setTimeout(() => { delete btn.dataset.armed; btn.textContent = old; btn.classList.remove('armed'); }, 3000);
+    return false;
+  }
+
+  async function readFile(file) {
+    const buf = await file.arrayBuffer();
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(buf).replace(/^﻿/, ''); }
+    catch (e) { return new TextDecoder('gb18030').decode(buf); }
+  }
+  function dateOf(file) {
+    const m = file.name.match(DATE_RE);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    return iso(new Date(file.lastModified || Date.now()));
+  }
+  const stripExt = n => n.replace(/\.[^.]+$/, '');
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+  // ---------------------------------------------------------------- 脚本库界面
+  let targetFromLib = null;
+
+  function renderLib() {
+    $('libCount').textContent = lib.length ? `共 ${lib.length} 篇` : '';
+    if (!lib.length) { $('lib').innerHTML = '<div class="empty">还没有历史脚本。上传以前的脚本，或者查重后点“保存到脚本库”。</div>'; return; }
+    const sorted = [...lib].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    $('lib').innerHTML = sorted.map(s => `
+      <div class="lib-item">
+        <span class="date">${esc(s.date)}</span>
+        <span class="name" title="${esc(s.title)}">${esc(s.title)}</span>
+        ${targetFromLib === s.id ? '<span class="tag">已指定</span>' : ''}
+        <button class="small" data-act="target" data-id="${esc(s.id)}">指定对比</button>
+        <button class="small danger" data-act="del" data-id="${esc(s.id)}">删除</button>
+      </div>`).join('');
+  }
+
+  $('lib').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const s = lib.find(x => x.id === b.dataset.id); if (!s) return;
+    if (b.dataset.act === 'del') {
+      if (!armed(b, '确认删除')) return;
+      if (targetFromLib === s.id) targetFromLib = null;
+      guarded(() => store.remove([s.id]), `已删除「${s.title}」`);
+    } else {
+      targetFromLib = s.id;
+      $('target').value = s.text;
+      renderLib();
+      toast(`已指定「${s.title}」为对比脚本`);
+    }
+  });
+  $('target').addEventListener('input', () => { if (targetFromLib) { targetFromLib = null; renderLib(); } });
+
+  $('libFiles').addEventListener('change', async e => {
+    const items = [];
+    for (const f of e.target.files) items.push({ id: uid(), title: stripExt(f.name), date: dateOf(f), text: await readFile(f) });
+    e.target.value = '';
+    guarded(() => store.add(items), `已添加 ${items.length} 篇脚本`);
+  });
+  $('currentFile').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    $('current').value = await readFile(f);
+    if (!$('currentTitle').value) $('currentTitle').value = stripExt(f.name);
+    e.target.value = '';
+  });
+  $('targetFile').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    $('target').value = await readFile(f); targetFromLib = null; renderLib();
+    e.target.value = '';
+  });
+
+  $('saveCurrent').addEventListener('click', () => {
+    const text = $('current').value.trim();
+    if (!text) { toast('今天的脚本是空的', true); return; }
+    const title = $('currentTitle').value.trim() || text.slice(0, 16);
+    guarded(() => store.add([{ id: uid(), title, date: $('today').value || iso(new Date()), text }]),
+      `已保存「${title}」，以后查重会和它对比`);
+  });
+  $('exportLib').addEventListener('click', async () => {
+    if (!lib.length) { toast('脚本库是空的', true); return; }
+    const filename = `脚本库备份-${iso(new Date())}.json`;
+    const data = JSON.stringify(lib, null, 2);
+    const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
+    if (dl) {
+      try { await dl.save({ filename, data }); } catch (err) { if (err && err.code !== 'cancelled' && err.code !== 'declined') toast('导出失败，请稍后再试', true); }
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); a.download = filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  $('importLib').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    e.target.value = '';
+    let data;
+    try { data = JSON.parse(await readFile(f)); if (!Array.isArray(data)) throw 0; }
+    catch (err) { toast('备份文件格式不对，请选择“导出备份”生成的 .json 文件', true); return; }
+    const ids = new Set(lib.map(x => x.id));
+    const items = data.filter(s => s && s.text && !ids.has(s.id)).map(s => ({
+      id: okId(s.id) ? s.id : uid(), title: String(s.title || '未命名'),
+      date: String(s.date || iso(new Date())), text: String(s.text),
+    }));
+    guarded(() => store.add(items), `导入了 ${items.length} 篇脚本`);
+  });
+  $('clearLib').addEventListener('click', e => {
+    if (!lib.length) return;
+    if (!armed(e.currentTarget, '再点一次清空全部')) { toast('清空前建议先导出备份'); return; }
+    targetFromLib = null;
+    guarded(() => store.remove(lib.map(x => x.id)), '脚本库已清空');
+  });
+
+  // ---------------------------------------------------------------- 查重
+  $('run').addEventListener('click', () => {
+    const current = $('current').value;
+    if (!current.trim()) { toast('请先填写今天的脚本', true); return; }
+    const opt = {
+      threshold: Math.min(1, Math.max(0.5, (+$('threshold').value || 80) / 100)),
+      minLen: Math.max(1, +$('minLen').value || 6),
+    };
+    const days = Math.max(0, +$('days').value || 0);
+    const today = $('today').value || iso(new Date());
+    const start = iso(new Date(new Date(today + 'T00:00:00').getTime() - days * 86400000));
+
+    const jobs = [];
+    const target = $('target').value;
+    if (target.trim()) {
+      const s = lib.find(x => x.id === targetFromLib);
+      jobs.push({ name: s ? s.title : '指定脚本', tag: '指定对比', text: target, id: targetFromLib });
+    }
+    if (days > 0) {
+      for (const s of lib) {
+        if (s.date >= start && s.date < today && s.id !== targetFromLib && s.text.trim() !== current.trim()) {
+          jobs.push({ name: s.title, tag: `前${days}天 · ${s.date}`, text: s.text });
+        }
+      }
+    }
+    const results = jobs.map(j => ({ ...j, ...compare(current, j.text, opt) }))
+                        .sort((a, b) => b.rate - a.rate);
+    renderResults(current, results, days, start, today);
+  });
+
+  function renderResults(current, results, days, start, today) {
+    const box = $('results');
+    box.style.display = 'block';
+    if (!results.length) {
+      box.innerHTML = `<h2 style="margin:0">查重结果</h2><p class="empty">没有可对比的脚本：脚本库里没有 ${start} ~ ${today}（不含今天）的脚本，也没有指定对比脚本。</p>`;
+      box.scrollIntoView({ behavior: 'smooth' }); return;
+    }
+    const worst = results[0];
+    const [cls, txt] = level(worst.rate);
+
+    // 原文高亮：合并所有对比中命中的小句
+    const marks = new Map();
+    for (const r of results) for (const h of r.hits) {
+      const k = h.clause.start;
+      if (!marks.has(k) || marks.get(k).sim < h.sim) marks.set(k, { ...h, from: r.name });
+    }
+    let html = '', pos = 0;
+    [...marks.values()].sort((a, b) => a.clause.start - b.clause.start).forEach(h => {
+      html += esc(current.slice(pos, h.clause.start));
+      html += `<mark title="${esc(`与「${h.from}」相似 ${pct(h.sim)}：${h.match}`)}">${esc(current.slice(h.clause.start, h.clause.end))}</mark>`;
+      pos = h.clause.end;
+    });
+    html += esc(current.slice(pos));
+
+    box.innerHTML = `
+      <h2 style="margin:0 0 12px">查重结果</h2>
+      <div class="summary">
+        <div><div class="big" style="color:${levelColor(worst.rate)}">${pct(worst.rate)}</div>
+             <div style="color:var(--muted);font-size:13px;margin-top:4px">最高重复率</div></div>
+        <span class="lvl ${cls}">${txt}</span>
+        <div style="color:var(--muted);font-size:14px">最像的是「${esc(worst.name)}」<br>共对比 ${results.length} 篇${days ? `（前 ${days} 天：${start} ~ 昨天）` : ''}</div>
+      </div>
+      ${results.map(r => {
+        const [c, t] = level(r.rate);
+        return `<div class="res">
+          <div class="res-head"><span class="name">${esc(r.name)}</span><span class="tag">${esc(r.tag)}</span>
+            <span class="lvl ${c}">${pct(r.rate)} ${t}</span></div>
+          <div class="bar"><i style="width:${(r.rate * 100).toFixed(1)}%;background:${levelColor(r.rate)}"></i></div>
+          <div class="metrics"><span>重复小句：${r.hits.length} 句</span><span>全文相似度：${pct(r.overall)}</span><span>片段重合：${pct(r.overlap)}</span></div>
+          ${r.hits.length ? `<details ${r === worst ? 'open' : ''}><summary>查看重复的句子</summary>
+            ${r.hits.map(h => `<div class="hit"><span class="sim">${pct(h.sim)}</span>${esc(h.clause.raw)}
+              ${norm(h.clause.raw) !== norm(h.match) ? `<div class="match">≈ ${esc(h.match)}</div>` : ''}</div>`).join('')}
+          </details>` : ''}
+        </div>`;
+      }).join('')}
+      <div class="res"><div class="res-head"><span class="name">今天的脚本（黄色为重复部分，鼠标悬停看来源）</span></div>
+        <div class="preview" style="margin-top:8px">${html}</div></div>`;
+    box.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  $('today').value = iso(new Date());
+  initStorage();
+})();
+</script>
+</body>
+</html>
