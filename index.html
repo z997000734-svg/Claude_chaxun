@@ -88,43 +88,47 @@ button:focus-visible, .btn:focus-within, textarea:focus-visible, input:focus-vis
   background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 14px;
   max-width: calc(100% - 32px); box-shadow: 0 4px 16px rgba(0,0,0,.2); z-index: 20; }
 .toast.err { background: var(--high); color: #fff; }
+.drop { position: relative; }
+.drop.over::after { content: attr(data-drop); position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  text-align: center; padding: 16px; border: 2px dashed var(--accent); border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-weak) 92%, transparent); color: var(--accent); font-weight: 600; z-index: 5; pointer-events: none; }
 .foot { color: var(--muted); font-size: 12px; margin-top: 24px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>视频脚本查重</h1>
-  <p class="sub">把今天的脚本和前几天的脚本、或者指定的脚本对比，看重复了多少。脚本库只有你自己能看到。</p>
+  <p class="sub">把今天的脚本和前几天的脚本、或者指定的脚本对比，看重复了多少。支持直接拖入 txt 和 Excel 文件。脚本库保存在你自己的浏览器里，不会上传。</p>
 
   <div class="grid">
-    <div class="card">
+    <div class="card drop" id="dropCurrent" data-drop="拖到这里，作为今天的脚本">
       <h2>① 今天的脚本</h2>
-      <textarea id="current" placeholder="把今天写的脚本粘贴到这里……"></textarea>
+      <textarea id="current" placeholder="把今天写的脚本粘贴到这里，或者把 txt / Excel 文件拖进来……"></textarea>
       <div class="row">
-        <label class="btn">上传文件<input type="file" id="currentFile" accept=".txt,.md,.srt,text/*"></label>
+        <label class="btn">上传文件<input type="file" id="currentFile" accept=".txt,.md,.srt,.xlsx,.xls,.xlsm,.csv,text/*"></label>
         <input type="text" id="currentTitle" placeholder="标题（保存到脚本库时用）" style="flex:1;min-width:140px">
       </div>
     </div>
 
-    <div class="card">
+    <div class="card drop" id="dropTarget" data-drop="拖到这里，作为对比脚本">
       <h2>② 指定对比的脚本 <span class="hint">可选</span></h2>
-      <textarea id="target" placeholder="想和某一篇脚本单独对比，就粘贴到这里……"></textarea>
+      <textarea id="target" placeholder="想和某一篇脚本单独对比，就粘贴到这里，或者把文件拖进来……"></textarea>
       <div class="row">
-        <label class="btn">上传文件<input type="file" id="targetFile" accept=".txt,.md,.srt,text/*"></label>
+        <label class="btn">上传文件<input type="file" id="targetFile" accept=".txt,.md,.srt,.xlsx,.xls,.xlsm,.csv,text/*"></label>
         <span class="hint" style="color:var(--muted);font-size:13px">也可以在下面的脚本库里点“指定对比”</span>
       </div>
     </div>
   </div>
 
-  <div class="card settings">
+  <div class="card settings drop" id="dropLib" data-drop="拖到这里，加入脚本库（可以一次拖多个）">
     <h2>③ 历史脚本库 <span class="hint" id="libCount"></span> <span class="store-note" id="storageNote"></span></h2>
     <div class="row" style="margin-top:0">
-      <label class="btn">批量上传脚本<input type="file" id="libFiles" multiple accept=".txt,.md,.srt,text/*"></label>
+      <label class="btn">批量上传脚本<input type="file" id="libFiles" multiple accept=".txt,.md,.srt,.xlsx,.xls,.xlsm,.csv,text/*"></label>
       <button id="exportLib">导出备份</button>
       <label class="btn">导入备份<input type="file" id="importLib" accept=".json"></label>
       <button id="clearLib" class="danger">清空</button>
     </div>
-    <div class="row"><span style="color:var(--muted);font-size:13px">上传时如果文件名里有日期（如 2026-11-01-保温杯.txt），就按该日期归档，否则按文件修改日期。</span></div>
+    <div class="row"><span style="color:var(--muted);font-size:13px">可以点按钮上传，也可以把文件直接拖进这个框，支持 txt 和 Excel（xlsx / xls / csv）。文件名里有日期（如 2026-11-01-保温杯.txt）就按该日期归档，否则按文件修改日期。<br>Excel 里如果有“日期”或“标题”列，加上“文案 / 脚本 / 内容 / 台词 / 口播”列，每一行算一篇脚本；没有的话整个表格算一篇。</span></div>
     <div class="lib" id="lib"></div>
   </div>
 
@@ -146,6 +150,7 @@ button:focus-visible, .btn:focus-within, textarea:focus-visible, input:focus-vis
   <p class="foot">重复率 = 重复小句的字数 ÷ 全文字数（≥50% 高度重复，≥20% 部分重复）。比较前会去掉标点、空格，英文不区分大小写。</p>
 </div>
 
+<script src="vendor/xlsx.full.min.js"></script>
 <script>
 (() => {
   // ---------------------------------------------------------------- 文本处理
@@ -315,6 +320,81 @@ button:focus-visible, .btn:focus-within, textarea:focus-visible, input:focus-vis
   const stripExt = n => n.replace(/\.[^.]+$/, '');
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
+  // ---------------------------------------------------------------- Excel
+  const isSheet = f => /\.(xlsx|xlsm|xls|csv)$/i.test(f.name);
+  const cell = v => v == null ? '' : String(v).trim();
+  // 表头识别：先认标题列，再认正文列（避免“脚本标题”被当成正文）
+  const H_TITLE = /标题|名称|主题|选题|title|name/i;
+  const H_TEXT = /文案|脚本|内容|正文|台词|口播|稿|text|content|script/i;
+  const H_DATE = /日期|时间|date|day/i;
+
+  function normDate(v) {
+    if (typeof v === 'number' && v > 30000 && v < 80000) { // Excel 日期序号
+      const d = new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000);
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+    }
+    const s = cell(v);
+    let m = s.match(/(20\d{2})\s*[-_./年]\s*(\d{1,2})\s*[-_./月]\s*(\d{1,2})/) || s.match(DATE_RE);
+    if (m) return `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}`;
+    m = s.match(/^(\d{1,2})\s*[月/.-]\s*(\d{1,2})/);
+    if (m) return `${new Date().getFullYear()}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+    return '';
+  }
+
+  async function readSheets(file) {
+    if (!window.XLSX) throw new Error('Excel 读取组件没有加载成功，请刷新页面后再试');
+    const wb = /\.csv$/i.test(file.name)
+      ? XLSX.read(await readFile(file), { type: 'string' })
+      : XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    return wb.SheetNames.map(name => ({
+      name,
+      rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' })
+        .filter(r => r.some(c => cell(c))),
+    })).filter(s => s.rows.length);
+  }
+
+  // 把一个工作表变成脚本：返回 {perRow: [...]} 或 {text}
+  function parseSheet(rows) {
+    for (let h = 0; h < Math.min(5, rows.length); h++) {
+      const head = rows[h].map(cell);
+      if (head.filter(Boolean).length < 2) continue; // 表格大标题这类单格行不是表头
+      const isHead = c => c && c.length <= 20;
+      const ni = head.findIndex(c => isHead(c) && H_TITLE.test(c));
+      const ti = head.findIndex((c, i) => i !== ni && isHead(c) && H_TEXT.test(c) && !H_TITLE.test(c));
+      if (ti < 0) continue;
+      const di = head.findIndex((c, i) => i !== ni && i !== ti && isHead(c) && H_DATE.test(c));
+      const body = rows.slice(h + 1).filter(r => cell(r[ti]));
+      if (di >= 0 || ni >= 0) { // 每行一篇脚本
+        return { perRow: body.map(r => ({ title: ni >= 0 ? cell(r[ni]) : '', date: di >= 0 ? normDate(r[di]) : '', text: cell(r[ti]) })) };
+      }
+      return { text: body.map(r => cell(r[ti])).join('\n') }; // 分镜表：只取台词/文案列
+    }
+    return { text: rows.map(r => r.map(cell).filter(Boolean).join('\n')).join('\n') };
+  }
+
+  // 读成一段文字（用于“今天的脚本”和“指定对比”）
+  async function readAsText(file) {
+    if (!isSheet(file)) return readFile(file);
+    return (await readSheets(file)).map(s => {
+      const p = parseSheet(s.rows);
+      return p.perRow ? p.perRow.map(x => x.text).join('\n') : p.text;
+    }).filter(Boolean).join('\n');
+  }
+
+  // 读成一篇或多篇脚本（用于脚本库）
+  async function readAsScripts(file) {
+    const base = stripExt(file.name), date = dateOf(file);
+    if (!isSheet(file)) return [{ title: base, date, text: await readFile(file) }];
+    const sheets = await readSheets(file), out = [];
+    for (const s of sheets) {
+      const p = parseSheet(s.rows);
+      const label = sheets.length > 1 ? `${base}-${s.name}` : base;
+      if (p.perRow) p.perRow.forEach((x, i) => out.push({ title: x.title || `${label}-第${i + 1}行`, date: x.date || date, text: x.text }));
+      else if (p.text) out.push({ title: label, date, text: p.text });
+    }
+    return out;
+  }
+
   // ---------------------------------------------------------------- 脚本库界面
   let targetFromLib = null;
 
@@ -348,23 +428,51 @@ button:focus-visible, .btn:focus-within, textarea:focus-visible, input:focus-vis
   });
   $('target').addEventListener('input', () => { if (targetFromLib) { targetFromLib = null; renderLib(); } });
 
-  $('libFiles').addEventListener('change', async e => {
-    const items = [];
-    for (const f of e.target.files) items.push({ id: uid(), title: stripExt(f.name), date: dateOf(f), text: await readFile(f) });
-    e.target.value = '';
-    guarded(() => store.add(items), `已添加 ${items.length} 篇脚本`);
-  });
-  $('currentFile').addEventListener('change', async e => {
-    const f = e.target.files[0]; if (!f) return;
-    $('current').value = await readFile(f);
-    if (!$('currentTitle').value) $('currentTitle').value = stripExt(f.name);
-    e.target.value = '';
-  });
-  $('targetFile').addEventListener('change', async e => {
-    const f = e.target.files[0]; if (!f) return;
-    $('target').value = await readFile(f); targetFromLib = null; renderLib();
-    e.target.value = '';
-  });
+  async function addLibFiles(files) {
+    const items = [], failed = [];
+    for (const f of files) {
+      try { for (const x of await readAsScripts(f)) if (x.text.trim()) items.push({ id: uid(), ...x }); }
+      catch (err) { failed.push(f.name); }
+    }
+    if (failed.length) toast(`这些文件读取失败：${failed.join('、')}。请确认是 txt 或 Excel 文件。`, true);
+    if (items.length) guarded(() => store.add(items), `已添加 ${items.length} 篇脚本`);
+    else if (!failed.length) toast('文件里没有读到文字内容', true);
+  }
+  async function loadInto(f, textareaId, after) {
+    if (!f) return;
+    try {
+      const text = await readAsText(f);
+      if (!text.trim()) { toast('文件里没有读到文字内容', true); return; }
+      $(textareaId).value = text; after(f);
+      toast(`已读取「${f.name}」`);
+    } catch (err) { toast(`读取「${f.name}」失败：${(err && err.message) || '文件格式不支持'}`, true); }
+  }
+  const toCurrent = f => loadInto(f, 'current', f => { if (!$('currentTitle').value) $('currentTitle').value = stripExt(f.name); });
+  const toTarget = f => loadInto(f, 'target', () => { targetFromLib = null; renderLib(); });
+
+  $('libFiles').addEventListener('change', e => { const fs = [...e.target.files]; e.target.value = ''; addLibFiles(fs); });
+  $('currentFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; toCurrent(f); });
+  $('targetFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; toTarget(f); });
+
+  // 拖放：把文件拖进对应的框
+  const hasFiles = e => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+  function dropZone(id, onFiles) {
+    const el = $(id); let depth = 0;
+    el.addEventListener('dragenter', e => { if (!hasFiles(e)) return; e.preventDefault(); depth++; el.classList.add('over'); });
+    el.addEventListener('dragover', e => { if (!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+    el.addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; el.classList.remove('over'); } });
+    el.addEventListener('drop', e => {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); e.stopPropagation(); depth = 0; el.classList.remove('over');
+      onFiles([...e.dataTransfer.files]);
+    });
+  }
+  dropZone('dropCurrent', fs => toCurrent(fs[0]));
+  dropZone('dropTarget', fs => toTarget(fs[0]));
+  dropZone('dropLib', addLibFiles);
+  // 拖到框外面时，不让浏览器直接打开文件
+  window.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+  window.addEventListener('drop', e => { if (hasFiles(e)) { e.preventDefault(); toast('请把文件拖到 ①、② 或 ③ 的框里', true); } });
 
   $('saveCurrent').addEventListener('click', () => {
     const text = $('current').value.trim();
